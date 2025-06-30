@@ -1,4 +1,4 @@
 pandas
 requests
-beautifulsoup4
+selenium
 tqdm
