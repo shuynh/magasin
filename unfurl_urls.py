@@ -8,13 +8,13 @@ import time
 import os
 
 # --- Configuration ---
-INPUT_FILE = 'testing.csv'
+INPUT_FILE = 'links.csv'
 OUTPUT_FILE = 'output_unfurled.csv'
 URL_COLUMN = 'URL'
 DEST_COLUMN = 'Unfurled URL'
 # NOTE: Reduced workers. Running browsers is very resource-intensive.
 # Start with 2 and increase carefully if your machine can handle it.
-MAX_WORKERS = 2
+MAX_WORKERS = 4
 MAX_REDIRECT_ATTEMPTS = 5 # Safety limit to prevent infinite loops
 
 # List of domains that we should keep trying to unfurl
