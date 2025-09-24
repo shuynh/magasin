@@ -8,8 +8,8 @@ import time
 import os
 
 # --- Configuration ---
-INPUT_FILE = 'output_unfurled_test.csv'  # The file with unfurled URLs that still has go.shopmy.us
-OUTPUT_FILE = 'output_fixed_shopmy.csv'
+INPUT_FILE = 'output_unfurled.csv'  # The file with unfurled URLs that still has go.shopmy.us
+OUTPUT_FILE = 'output_fixed_final.csv'
 UNFURLED_COLUMN = 'Unfurled URL'  # Column to check and fix
 MAX_WORKERS = 4
 MAX_REDIRECT_ATTEMPTS = 5
