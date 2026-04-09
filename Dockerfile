@@ -1,19 +1,42 @@
-# Use an official lightweight Python image as a base
-FROM python:3.10-slim
+FROM python:3.10-slim-bullseye
 
-# Set the working directory inside the container to /app
-# All subsequent commands will be run from this directory
+RUN groupadd -r appuser && useradd --no-log-init -r -g appuser -m appuser
+
 WORKDIR /app
 
-# Copy the requirements file first to leverage Docker's layer caching
-# This step will only be re-run if the requirements file changes
-COPY requirements.txt .
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium \
+    chromium-driver \
+    fonts-liberation \
+    libglib2.0-0 \
+    libnss3 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libxss1 \
+    libasound2 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libxkbcommon0 \
+    xdg-utils \
+    wget \
+    curl \
+    ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 
-# Install the Python dependencies
+# Install Python dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application files (the script and the CSV) into the container
 COPY . .
 
-# Set the command to run when the container starts
+RUN chown -R appuser:appuser /app
+
+# --- Switch to our non-root user ---
+USER appuser
+
 CMD ["python", "unfurl_urls.py"]
+
