@@ -6,6 +6,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 import time
 import os
+from urllib.parse import urlparse, parse_qs
 
 # --- Configuration ---
 INPUT_FILE = 'links.csv'
@@ -35,6 +36,14 @@ def unfurl_url_with_browser(url: str) -> str:
     """
     if not isinstance(url, str) or not url.startswith('http'):
         return url
+
+    # click.linksynergy.com deeplinks carry the real destination in the murl
+    # param. The affiliate redirect itself returns HTTP 400 when the
+    # partnership is dead, so decode murl directly instead of using a browser.
+    if 'click.linksynergy.com' in url:
+        murl = parse_qs(urlparse(url).query).get('murl', [''])[0]
+        if murl.startswith('http'):
+            return murl
 
     # Detect if this is a go.shopmy.us URL that needs aggressive handling
     is_aggressive = AGGRESSIVE_MODE and 'go.shopmy.us' in url
