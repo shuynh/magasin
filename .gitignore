@@ -1,3 +1,4 @@
 # bad stuff
 .DS_Store
 *.csv
+invoice-*
