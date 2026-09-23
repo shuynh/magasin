@@ -1,4 +1,5 @@
 import pandas as pd
+import requests
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 from selenium import webdriver
@@ -11,16 +12,29 @@ import os
 INPUT_FILE = 'output_unfurled.csv'  # The file with unfurled URLs that still has go.shopmy.us
 OUTPUT_FILE = 'output_fixed_final.csv'
 UNFURLED_COLUMN = 'Unfurled URL'  # Column to check and fix
+URL_COLUMN = 'URL'
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 MAX_WORKERS = 4
 MAX_REDIRECT_ATTEMPTS = 5
 
+def resolve_with_http(url: str) -> str:
+    try:
+        with requests.get(url, headers={'User-Agent': USER_AGENT}, timeout=20, stream=True) as response:
+            return response.url
+    except requests.RequestException:
+        return url
+
 def unfurl_shopmy_url(url: str) -> str:
     """
-    Specifically unfurls go.shopmy.us URLs using a headless Chromium browser.
-    Returns the original URL if it doesn't contain go.shopmy.us or if unfurling fails.
+    Resolves a URL with a plain HTTP request, falling back to a headless Chromium browser
+    when the request does not get past go.shopmy.us.
     """
-    if not isinstance(url, str) or 'go.shopmy.us' not in url:
+    if not isinstance(url, str) or not url.startswith('http'):
         return url
+
+    resolved = resolve_with_http(url)
+    if 'go.shopmy.us' not in resolved:
+        return resolved
 
     # --- Setup Headless Chromium Browser ---
     chrome_options = Options()
@@ -38,7 +52,7 @@ def unfurl_shopmy_url(url: str) -> str:
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--disable-plugins")
     chrome_options.add_argument("--disable-images")  # Speed up loading
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    chrome_options.add_argument(f"user-agent={USER_AGENT}")
 
     # Use a Service object to explicitly point to chromedriver
     service = Service(executable_path="/usr/bin/chromedriver")
@@ -86,6 +100,12 @@ def unfurl_shopmy_url(url: str) -> str:
                 current_url = new_url
 
             except Exception as page_error:
+                # A page load timeout still leaves the browser on the redirect target
+                try:
+                    if driver.current_url.startswith('http') and 'go.shopmy.us' not in driver.current_url:
+                        return driver.current_url
+                except Exception:
+                    pass
                 # If this specific attempt failed, try one more time with the original URL
                 if attempt == 0:
                     try:
@@ -134,28 +154,28 @@ def main():
         print(f"ERROR: CSV must contain the column '{UNFURLED_COLUMN}'.")
         return
 
-    # Find rows that have go.shopmy.us in the unfurled column
-    shopmy_mask = df[UNFURLED_COLUMN].fillna('').str.contains('go.shopmy.us', na=False)
-    shopmy_urls = df.loc[shopmy_mask, UNFURLED_COLUMN].tolist()
+    # Rows still on shopmy, plus rows where a failed page load saved the browser's blank start page (data:,)
+    unfurled = df[UNFURLED_COLUMN].fillna('')
+    fix_mask = unfurled.str.contains('go.shopmy.us') | (df[URL_COLUMN].fillna('').str.startswith('http') & ~unfurled.str.startswith('http'))
+    urls_to_fix = df.loc[fix_mask, URL_COLUMN].tolist()
 
-    if not shopmy_urls:
-        print("No go.shopmy.us URLs found in the unfurled column. Nothing to process.")
+    if not urls_to_fix:
+        print("No URLs need fixing. Nothing to process.")
         df.to_csv(os.path.join('/app', OUTPUT_FILE), index=False)
         return
 
-    print(f"Found {len(shopmy_urls)} go.shopmy.us URLs to fix. Starting browser-based unfurling with {MAX_WORKERS} workers...")
+    print(f"Found {len(urls_to_fix)} URLs to fix with {MAX_WORKERS} workers...")
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         results = list(
-            tqdm(executor.map(unfurl_shopmy_url, shopmy_urls), total=len(shopmy_urls), desc="Fixing go.shopmy.us URLs")
+            tqdm(executor.map(unfurl_shopmy_url, urls_to_fix), total=len(urls_to_fix), desc="Fixing URLs")
         )
 
-    # Update only the rows that had go.shopmy.us URLs
-    df.loc[shopmy_mask, UNFURLED_COLUMN] = results
+    df.loc[fix_mask, UNFURLED_COLUMN] = results
 
     # Check how many were successfully unfurled
     still_shopmy = df[UNFURLED_COLUMN].fillna('').str.contains('go.shopmy.us', na=False).sum()
-    fixed_count = len(shopmy_urls) - still_shopmy
+    fixed_count = len(urls_to_fix) - still_shopmy
 
     print(f"\nProcessing complete!")
     print(f"Successfully unfurled: {fixed_count} URLs")
