@@ -128,6 +128,13 @@ def unfurl_url_with_browser(url: str) -> str:
                 current_url = new_url
 
             except Exception as page_error:
+                # A page load timeout still leaves the browser on the redirect target
+                try:
+                    landed = driver.current_url
+                    if landed.startswith('http') and not any(domain in landed for domain in TRICKY_REDIRECT_DOMAINS):
+                        return landed
+                except Exception:
+                    pass
                 if is_aggressive:
                     # Recovery attempt for aggressive mode
                     if attempt == 0:

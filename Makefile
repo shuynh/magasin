@@ -4,7 +4,7 @@ build:
 	docker build -t url-unfurler .
 
 run:
-	docker run --rm -v "$(PWD)":/app url-unfurler
+	time docker run --rm -v "$(PWD)":/app url-unfurler
 
 run-fast:
 	docker run --rm -v "$(PWD)":/app -e AGGRESSIVE_MODE=false url-unfurler
